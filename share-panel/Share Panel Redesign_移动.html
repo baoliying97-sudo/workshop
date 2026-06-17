@@ -750,7 +750,6 @@ svg {
     background: #fff;
     position: relative;
   }
-  .mp-collab-nav__title-edit { display: none; }
   .m-collab-page.is-editing .collab-manage-default,
   .mp-collab-page.is-editing .collab-manage-default { display: none; }
   .m-collab-page.is-editing .collab-manage-edit,
@@ -783,10 +782,6 @@ svg {
     position: absolute;
     inset: 0;
     z-index: 1;
-  }
-  .mp-entry-page.is-hidden {
-    visibility: hidden;
-    pointer-events: none;
   }
   .mp-entry-chrome {
     position: absolute;
@@ -1433,26 +1428,32 @@ svg {
     height: 20px;
   }
   .m-collab-toolbar {
-    flex-shrink: 0; padding: 12px 16px 8px;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-rows: 1fr;
+    overflow: hidden;
     background: transparent;
-    transition: padding var(--kd-time-normal) var(--kd-easing-ease);
+    transition: grid-template-rows 220ms var(--kd-easing-ease);
   }
   .m-collab-toolbar.is-collapsed {
+    grid-template-rows: 0fr;
+  }
+  .m-collab-toolbar__slide {
+    min-height: 0;
+    overflow: hidden;
+    padding: 12px 16px 8px;
+    transition: padding 220ms var(--kd-easing-ease);
+  }
+  .m-collab-toolbar.is-collapsed .m-collab-toolbar__slide {
     padding-top: 0;
     padding-bottom: 0;
   }
   .m-collab-toolbar__search,
   .m-collab-actions {
-    overflow: hidden;
-    max-height: 48px;
-    opacity: 1;
-    transition: max-height 220ms var(--kd-easing-ease),
-                opacity 180ms var(--kd-easing-ease),
-                margin 220ms var(--kd-easing-ease);
+    overflow: visible;
   }
   .m-collab-actions {
     display: flex; align-items: center; gap: 4px; margin-top: 12px;
-    max-height: 28px;
   }
   .m-collab-actions__spacer {
     flex: 1;
@@ -1467,12 +1468,15 @@ svg {
     cursor: pointer;
     flex-shrink: 0;
   }
-  .m-collab-toolbar.is-collapsed .m-collab-toolbar__search,
-  .m-collab-toolbar.is-collapsed .m-collab-actions {
-    max-height: 0;
-    opacity: 0;
-    margin-top: 0;
-    pointer-events: none;
+  .m-collab-actions .kd-button-light-shallow.kd-button-m,
+  .m-collab-header #collabManageBtn.kd-button-light-shallow.kd-button-m {
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .m-collab-actions .kd-button-light-shallow.kd-button-m .kd-button-children,
+  .m-collab-header #collabManageBtn .kd-button-children {
+    font-size: 14px;
+    line-height: 22px;
   }
   .m-collab-page.is-searching .m-collab-actions { display: none; }
   .m-collab-body {
@@ -1729,9 +1733,10 @@ svg {
     color: rgba(13, 13, 13, 0.9);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .m-collab-page .sp-cpanel-item__sub {
-    font-size: 12px;
-    line-height: 20px;
+  .m-collab-page .sp-cpanel-item__sub,
+  .mp-collab-page .sp-cpanel-item__sub {
+    font-size: 14px;
+    line-height: 22px;
     font-weight: 400;
     color: rgba(13, 13, 13, 0.66);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2612,6 +2617,7 @@ svg {
         </div>
       </div>
       <div class="m-collab-toolbar" id="collabToolbar">
+        <div class="m-collab-toolbar__slide">
         <div class="m-collab-toolbar__search" id="collabSearchSlot">
         <div class="kd-input kd-input-x-large" id="collabSearchRow">
           <div class="kd-input-wrap">
@@ -2634,6 +2640,7 @@ svg {
             <span class="kd-button-prefix-icon kd-icon" data-kd-icon="more" data-kd-size="16"></span>
             <span class="kd-button-children">更多</span>
           </button>
+        </div>
         </div>
       </div>
       <div class="m-collab-select-bar" id="collabSelectBar">
@@ -3144,7 +3151,9 @@ svg {
   var activePermRow = null;
   var activePermBtn = null;
   var collabScrollLastTop = 0;
-  var collabScrollDeltaThreshold = 6;
+  var collabScrollDeltaThreshold = 12;
+  var collabToolbarIsCollapsed = false;
+  var collabScrollRaf = 0;
   var collabSearchFocused = false;
   var collabPermMode = 'edit';
   var pendingAddContact = null;
@@ -3585,6 +3594,14 @@ svg {
 
   function setCollabManageBtnLabel(text) {
     if (collabManageBtnLabel) collabManageBtnLabel.textContent = text;
+    else if (collabManageBtn) collabManageBtn.textContent = text;
+  }
+
+  function toggleCollabEditingMode() {
+    if (!collabPage) return;
+    var editing = !collabPage.classList.contains('is-editing');
+    setCollabEditing(editing);
+    setCollabManageBtnLabel(editing ? '取消' : '批量管理');
   }
 
   var KD_M_CHECKBOX_INNER = ''
@@ -4021,14 +4038,14 @@ svg {
     var keyword = getCollabKeyword();
     var isSearching = !!keyword;
     if (collabPage) collabPage.classList.toggle('is-searching', isSearching);
-    if (isSearching && collabToolbar) collabToolbar.classList.remove('is-collapsed');
+    if (isSearching) setCollabToolbarCollapsed(false);
   }
 
   function resetCollabSearch() {
     if (collabSearchInput) collabSearchInput.value = '';
     if (collabSearchRow) collabSearchRow.classList.remove('is-focus');
     if (collabPage) collabPage.classList.remove('is-searching');
-    if (collabToolbar) collabToolbar.classList.remove('is-collapsed');
+    setCollabToolbarCollapsed(false);
     if (collabBody) collabBody.scrollTop = 0;
     collabScrollLastTop = 0;
     if (collabSearchResultTitle) collabSearchResultTitle.hidden = true;
@@ -4045,8 +4062,45 @@ svg {
   }
 
   function setCollabToolbarCollapsed(collapsed) {
-    if (!collabToolbar) return;
+    if (!collabToolbar || collabToolbarIsCollapsed === collapsed) return;
+    collabToolbarIsCollapsed = collapsed;
     collabToolbar.classList.toggle('is-collapsed', collapsed);
+  }
+
+  function handleCollabBodyScroll() {
+    if (!collabBody) return;
+    var currentTop = collabBody.scrollTop;
+    var delta = currentTop - collabScrollLastTop;
+    if (shouldKeepCollabToolbarExpanded()) {
+      setCollabToolbarCollapsed(false);
+      collabScrollLastTop = currentTop;
+      return;
+    }
+    if (currentTop <= 0) {
+      setCollabToolbarCollapsed(false);
+    } else if (delta >= collabScrollDeltaThreshold && currentTop > 32) {
+      setCollabToolbarCollapsed(true);
+    } else if (delta <= -collabScrollDeltaThreshold) {
+      setCollabToolbarCollapsed(false);
+    }
+    collabScrollLastTop = currentTop;
+  }
+
+  function runInCollabScope(scope, fn) {
+    if (scope === mpCollabBundle) withMpCollabScope(fn);
+    else fn();
+  }
+
+  function bindCollabBodyScroll(body, scope) {
+    if (!body || body.dataset.collabScrollBound) return;
+    body.dataset.collabScrollBound = '1';
+    body.addEventListener('scroll', function() {
+      if (collabScrollRaf) return;
+      collabScrollRaf = window.requestAnimationFrame(function() {
+        collabScrollRaf = 0;
+        runInCollabScope(scope, handleCollabBodyScroll);
+      });
+    }, { passive: true });
   }
 
   function updateCollabToolbarCollapse(forceExpand) {
@@ -4055,7 +4109,7 @@ svg {
       setCollabToolbarCollapsed(false);
       return;
     }
-    setCollabToolbarCollapsed(collabBody.scrollTop > 8);
+    handleCollabBodyScroll();
   }
 
   var permChevronSvg = typeof kdIcon === 'function' ? kdIcon('arrow_down_s', 12) : '';
@@ -4129,6 +4183,8 @@ svg {
     collabPage.classList.add('is-visible');
     collabPage.setAttribute('aria-hidden', 'false');
     if (mPhone) mPhone.classList.add('is-status-dark');
+    collabScrollLastTop = collabBody ? collabBody.scrollTop : 0;
+    setCollabToolbarCollapsed(false);
   }
 
   function closeCollabPage() {
@@ -4200,11 +4256,7 @@ svg {
   if (collabNavRow) collabNavRow.addEventListener('click', openCollabPage);
   if (collabBackBtn) collabBackBtn.addEventListener('click', closeCollabPage);
   if (collabManageBtn && collabPage) {
-    collabManageBtn.addEventListener('click', function() {
-      var editing = !collabPage.classList.contains('is-editing');
-      setCollabEditing(editing);
-      setCollabManageBtnLabel(editing ? '取消' : '批量管理');
-    });
+    collabManageBtn.addEventListener('click', toggleCollabEditingMode);
   }
   if (collabSelectAllInput) {
     collabSelectAllInput.addEventListener('change', function() {
@@ -4239,7 +4291,7 @@ svg {
     collabSearchInput.addEventListener('focus', function() {
       collabSearchFocused = true;
       if (collabSearchRow) collabSearchRow.classList.add('is-focus');
-      if (collabToolbar) collabToolbar.classList.remove('is-collapsed');
+      setCollabToolbarCollapsed(false);
       showMockKeyboard();
     });
     collabSearchInput.addEventListener('blur', function() {
@@ -4293,23 +4345,6 @@ svg {
       syncCollabSearchClear();
       applyCollabFilter();
     });
-  }
-  if (collabBody) {
-    collabBody.addEventListener('scroll', function() {
-      var currentTop = collabBody.scrollTop;
-      var delta = currentTop - collabScrollLastTop;
-      if (shouldKeepCollabToolbarExpanded()) {
-        setCollabToolbarCollapsed(false);
-        collabScrollLastTop = currentTop;
-        return;
-      }
-      if (currentTop <= 0) {
-        setCollabToolbarCollapsed(false);
-      } else if (Math.abs(delta) >= collabScrollDeltaThreshold) {
-        setCollabToolbarCollapsed(delta > 0);
-      }
-      collabScrollLastTop = currentTop;
-    }, { passive: true });
   }
   seedExtraCollabMembers();
   initCollabMemberMetadata();
@@ -4478,10 +4513,8 @@ svg {
 
   /* ===== 小程序场景 ===== */
   var mpDevice = document.getElementById('mpDevice');
-  var mpEntryPage = document.getElementById('mpEntryPage');
   var mpShareRoutePage = document.getElementById('mpShareRoutePage');
   var mpCollabSlot = document.getElementById('mpCollabSlot');
-  var mpCollabNavTitleEdit = null;
   var mpSceneReady = false;
   var mpCollabBundle = null;
   var mobileCollabBundle = null;
@@ -4537,8 +4570,15 @@ svg {
       permRemoveBtn: collabPermRemoveBtn,
       softKeyboard: mSoftKeyboard,
       softKeyboardDone: mSoftKeyboardDone,
-      backBtn: collabBackBtn
+      backBtn: collabBackBtn,
+      scrollLastTop: collabScrollLastTop,
+      toolbarIsCollapsed: collabToolbarIsCollapsed
     };
+  }
+
+  function syncCollabToolbarDomState() {
+    if (!collabToolbar) return;
+    collabToolbar.classList.toggle('is-collapsed', collabToolbarIsCollapsed);
   }
 
   function applyCollabScope(scope) {
@@ -4582,6 +4622,15 @@ svg {
     mSoftKeyboard = scope.softKeyboard;
     mSoftKeyboardDone = scope.softKeyboardDone;
     collabBackBtn = scope.backBtn;
+    collabScrollLastTop = scope.scrollLastTop != null ? scope.scrollLastTop : 0;
+    collabToolbarIsCollapsed = !!scope.toolbarIsCollapsed;
+    syncCollabToolbarDomState();
+  }
+
+  function persistCollabScopeState(scope) {
+    if (!scope) return;
+    scope.scrollLastTop = collabScrollLastTop;
+    scope.toolbarIsCollapsed = collabToolbarIsCollapsed;
   }
 
   function buildCollabBundleFromRoot(root) {
@@ -4628,7 +4677,9 @@ svg {
       softKeyboardDone: root.querySelector('#' + toMpElementId('mSoftKeyboardDone')),
       backBtn: root.querySelector('#mpCollabBackBtn'),
       manageBtnDefault: root.querySelector('#mpCollabManageBtnDefault'),
-      manageBtnEdit: root.querySelector('#mpCollabManageBtnEdit')
+      manageBtnEdit: root.querySelector('#mpCollabManageBtnEdit'),
+      scrollLastTop: 0,
+      toolbarIsCollapsed: false
     };
   }
 
@@ -4636,7 +4687,10 @@ svg {
     if (!mpCollabBundle) return;
     var saved = captureCollabScope();
     applyCollabScope(mpCollabBundle);
-    try { fn(); } finally { applyCollabScope(saved); }
+    try { fn(); } finally {
+      persistCollabScopeState(mpCollabBundle);
+      applyCollabScope(saved);
+    }
   }
 
   function insertMpCollabNav(page) {
@@ -4657,24 +4711,20 @@ svg {
       + '</button></div>'
       + '<div class="mp-custom-nav__center">'
       + '<span class="mp-collab-nav__title-default">已加入分享的人</span>'
-      + '<span class="mp-collab-nav__title-edit" id="mpCollabNavTitleEdit">已选 0 人</span>'
       + '</div>'
       + '<div class="mp-custom-nav__right"></div>'
       + '</div></div>'
       + '<div class="mp-capsule" aria-hidden="true"><svg width="87" height="32" viewBox="0 0 87 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.25" y="0.25" width="86.5" height="31.5" rx="15.75" stroke="#0D0D0D" stroke-opacity="0.06" stroke-width="0.5" stroke-linejoin="bevel"/><path d="M22.916 13.5C24.7107 13.5 26.166 14.9547 26.166 16.75C26.166 18.5447 24.7107 20 22.916 20C21.1214 20 19.666 18.5447 19.666 16.75C19.666 14.9547 21.1214 13.5 22.916 13.5ZM15.666 15C16.7704 15 17.666 15.8952 17.666 17C17.666 18.1044 16.7704 19 15.666 19C14.5616 19 13.666 18.1044 13.666 17C13.666 15.8952 14.5616 15 15.666 15ZM30.166 15C31.2704 15 32.166 15.8952 32.166 17C32.166 18.1044 31.2704 19 30.166 19C29.0616 19 28.166 18.1044 28.166 17C28.166 15.8952 29.0616 15 30.166 15Z" fill="#333333"/><rect opacity="0.2" x="43.332" y="6" width="0.333333" height="20" fill="#333333"/><path d="M65.416 7.5C70.2478 7.5 74.166 11.4165 74.166 16.25C74.166 21.0817 70.2478 25 65.416 25C60.5843 25 56.666 21.0817 56.666 16.25C56.666 11.4165 60.5843 7.5 65.416 7.5" stroke="#333333" stroke-width="2"/><path fill-rule="evenodd" clip-rule="evenodd" d="M65.416 13C67.2107 13 68.666 14.4547 68.666 16.25C68.666 18.0447 67.2107 19.5 65.416 19.5C63.6214 19.5 62.166 18.0447 62.166 16.25C62.166 14.4547 63.6214 13 65.416 13Z" fill="#333333"/></svg></div>';
     page.insertBefore(nav, page.firstChild);
     if (typeof kdBindIcons === 'function') kdBindIcons(nav);
-    mpCollabNavTitleEdit = nav.querySelector('#mpCollabNavTitleEdit');
   }
 
   function openMpSharePage() {
     if (mpShareRoutePage) mpShareRoutePage.classList.add('is-visible');
-    if (mpEntryPage) mpEntryPage.classList.add('is-hidden');
   }
 
   function closeMpSharePage() {
     if (mpShareRoutePage) mpShareRoutePage.classList.remove('is-visible');
-    if (mpEntryPage) mpEntryPage.classList.remove('is-hidden');
     withMpCollabScope(function() {
       if (collabPage) closeCollabPage();
     });
@@ -4710,18 +4760,13 @@ svg {
     }
 
     function toggleMpCollabEditing() {
-      withMpCollabScope(function() {
-        if (!collabPage) return;
-        var editing = !collabPage.classList.contains('is-editing');
-        setCollabEditing(editing);
-        setCollabManageBtnLabel(editing ? '取消' : '批量管理');
-      });
+      withMpCollabScope(toggleCollabEditingMode);
     }
 
-    if (mpCollabBundle && mpCollabBundle.manageBtnDefault) {
+    if (mpCollabBundle.manageBtnDefault) {
       mpCollabBundle.manageBtnDefault.addEventListener('click', toggleMpCollabEditing);
     }
-    if (mpCollabBundle && mpCollabBundle.manageBtnEdit) {
+    if (mpCollabBundle.manageBtnEdit) {
       mpCollabBundle.manageBtnEdit.addEventListener('click', toggleMpCollabEditing);
     }
 
@@ -4789,7 +4834,7 @@ svg {
         withMpCollabScope(function() {
           collabSearchFocused = true;
           if (collabSearchRow) collabSearchRow.classList.add('is-focus');
-          if (collabToolbar) collabToolbar.classList.remove('is-collapsed');
+          setCollabToolbarCollapsed(false);
           showMockKeyboard();
         });
       });
@@ -4851,26 +4896,6 @@ svg {
           }
         });
       });
-    }
-
-    if (mpCollabBundle.body) {
-      mpCollabBundle.body.addEventListener('scroll', function() {
-        withMpCollabScope(function() {
-          var currentTop = mpCollabBundle.body.scrollTop;
-          var delta = currentTop - collabScrollLastTop;
-          if (shouldKeepCollabToolbarExpanded()) {
-            setCollabToolbarCollapsed(false);
-            collabScrollLastTop = currentTop;
-            return;
-          }
-          if (currentTop <= 0) {
-            setCollabToolbarCollapsed(false);
-          } else if (Math.abs(delta) >= collabScrollDeltaThreshold) {
-            setCollabToolbarCollapsed(delta > 0);
-          }
-          collabScrollLastTop = currentTop;
-        });
-      }, { passive: true });
     }
 
     if (mpCollabBundle.contactResults) {
@@ -5107,6 +5132,8 @@ svg {
     });
     syncMpMembersRowLabel();
 
+    bindCollabBodyScroll(mobileCollabBundle && mobileCollabBundle.body, mobileCollabBundle);
+    bindCollabBodyScroll(mpCollabBundle && mpCollabBundle.body, mpCollabBundle);
     bindMpCollabHandlers();
   }
 

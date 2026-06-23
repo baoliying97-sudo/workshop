@@ -3429,7 +3429,14 @@ svg {
     });
   }
 
+  function formatMixedCnCopy(text) {
+    return String(text)
+      .replace(/([\u4e00-\u9fa5])([A-Za-z0-9]+)/g, '$1 $2')
+      .replace(/([A-Za-z0-9]+)([\u4e00-\u9fa5])/g, '$1 $2');
+  }
+
   function showMToast(type, text) {
+    text = formatMixedCnCopy(text);
     var icons = {
       success: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16Z" fill="#418F1F"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12.6009 5.19891C12.9329 5.53086 12.9329 6.06905 12.6009 6.40099L7.78109 11.2208C7.44914 11.5528 6.91095 11.5528 6.57901 11.2208L3.89886 8.5407C3.56692 8.20876 3.56692 7.67057 3.89886 7.33862C4.23081 7.00668 4.769 7.00668 5.10094 7.33862L7.18005 9.41772L11.3989 5.19891C11.7308 4.86696 12.269 4.86696 12.6009 5.19891Z" fill="white"/></svg>',
       info: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 16C12.4183 16 16 12.4183 16 8C16 3.58172 12.4183 0 8 0C3.58172 0 0 3.58172 0 8C0 12.4183 3.58172 16 8 16Z" fill="#1F69E0"/><path fill-rule="evenodd" clip-rule="evenodd" d="M8 13C8.55228 13 9 12.5523 9 12V7C9 6.44772 8.55228 6 8 6C7.44772 6 7 6.44772 7 7V12C7 12.5523 7.44772 13 8 13ZM7 4C7 4.55228 7.44772 5 8 5C8.55228 5 9 4.55228 9 4C9 3.44772 8.55228 3 8 3C7.44772 3 7 3.44772 7 4Z" fill="white"/></svg>'
@@ -3448,6 +3455,12 @@ svg {
       }
       window.setTimeout(function() { root.remove(); }, 280);
     }, 2500);
+  }
+
+  function showCollabSwitchToast(switchRow, isOn) {
+    var labelEl = switchRow.querySelector('span:first-child');
+    var settingName = labelEl ? labelEl.textContent.trim() : '设置';
+    showMToast('success', (isOn ? '已开启' : '已关闭') + settingName);
   }
 
   function getCollabContactByName(name) {
@@ -3887,7 +3900,7 @@ svg {
     var label = permLabelMap[permVal] || permVal;
     setCollabItemPermLabel(row, label);
     applyCollabFilter();
-    showMToast('success', '设置成功');
+    showMToast('success', '已将「' + name + '」设为' + label);
   }
 
   function updateCollabPermBatch(rows, permVal) {
@@ -3899,7 +3912,7 @@ svg {
       setCollabItemPermLabel(row, label);
     });
     applyCollabFilter();
-    showMToast('success', '设置成功');
+    showMToast('success', '已将' + rows.length + '人设为' + label);
     exitCollabEditing();
   }
 
@@ -4409,6 +4422,7 @@ svg {
         switchRow.setAttribute('aria-checked', isOn ? 'true' : 'false');
         var switchEl = switchRow.querySelector('.m-simple-switch');
         if (switchEl) switchEl.classList.toggle('is-on', isOn);
+        showCollabSwitchToast(switchRow, isOn);
         return;
       }
     });
@@ -4999,6 +5013,7 @@ svg {
             switchRow.setAttribute('aria-checked', isOn ? 'true' : 'false');
             var switchEl = switchRow.querySelector('.m-simple-switch');
             if (switchEl) switchEl.classList.toggle('is-on', isOn);
+            showCollabSwitchToast(switchRow, isOn);
             return;
           }
         });
